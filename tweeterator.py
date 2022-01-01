@@ -1,8 +1,7 @@
-# import gensim
 import argparse
+import pickle
 
 import numpy as np
-# import pandas as pd
 
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Dense, Input, GRU, Flatten, SpatialDropout1D, SimpleRNN
@@ -82,7 +81,7 @@ def train(input, net_type, latent_dim, window, dropout, batch_size, epochs,
             validation_data=test_data_generator, validation_steps=test_data_generator.get_n_steps_in_epoch(),
             epochs=epochs)
 
-    return model
+    return model, word2int, int2word
 
 
 if __name__ == "__main__":
@@ -115,7 +114,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    model = train(args.input, args.net_type, args.latent_dim, args.window, args.dropout, args.batch_size,
+    model, w2i, i2w = train(args.input, args.net_type, args.latent_dim, args.window, args.dropout, args.batch_size,
                   args.epochs, args.learning_rate, args.perc_test, args.hidden, args.remove)
     
     model.save(args.output_model_file)
+
+    dicts_dump_file = '.'.join(args.output_model_file.split['.'][:-1]) + '.pkl'
+    with open(dicts_dump_file, 'wb') as f:
+        pickle.dump(w2i, f)
+        pickle.dump(i2w, f)
