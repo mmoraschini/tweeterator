@@ -1,20 +1,20 @@
-import numpy as np
-import pandas as pd
+# import gensim
+import argparse
 
-from keras.models import Model, Sequential
-from keras.layers import Dense, Input, GRU, Flatten, SpatialDropout1D, SimpleRNN
-from keras.layers.embeddings import Embedding
-from keras.optimizers import RMSprop, adam
+import numpy as np
+# import pandas as pd
+
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Dense, Input, GRU, Flatten, SpatialDropout1D, SimpleRNN
+from tensorflow.keras.layers import Embedding
+from tensorflow.keras.optimizers import RMSprop, Adam
+from tensorflow.test import gpu_device_name
 
 from data_generator import DataGenerator
-
-import gensim
-
 from loader import Loader
 
+
 try:
-    from tensorflow.test import gpu_device_name
-    
     if gpu_device_name():
         print('GPU found')
     else:
@@ -22,86 +22,102 @@ try:
 except Exception as e:
     print(e)
 
-fname = 'data/vicinitas_user_tweets.xlsx'
-words_to_remove = ['#Salvini:']
-word_feature_dim = 50
-latent_dim = 50
-num_tokens = 1000
-window = 5
-dropout = 0
-batch_size = 32
-epochs = 100
-perc_test = 0.2
-n_hidden_layers = 2
 
-w2v = True
+def train(input, net_type, latent_dim, window, dropout, batch_size, epochs,
+          learning_rate, perc_test, n_hidden, regex_to_remove):
 
-loader = Loader('vicinitas')
-data = loader.load(fname, window=window+1, words_to_remove=words_to_remove)
-data = np.array(data)
+    loader = Loader('vicinitas')
+    data = loader.load(input, window=window+1, words_to_remove=regex_to_remove)
+    data = np.array(data)
 
-word2int = {}
-int2word = {}
-idx = 0
-for seq in data:
-    for word in seq:
-        if word not in word2int.keys():
-            word2int[word] = idx
-            int2word[idx] = word
-            idx += 1
-        else:
-            continue
+    word2int = {}
+    int2word = {}
+    idx = 0
+    for seq in data:
+        for word in seq:
+            if word not in word2int.keys():
+                word2int[word] = idx
+                int2word[idx] = word
+                idx += 1
+            else:
+                continue
 
-#data_int = np.array([[word2int[word] for word in sentence] for sentence in data])
-#data = data_int
+    n_phrases = len(data)
+    train_idx = np.random.choice(np.arange(n_phrases), int(n_phrases*perc_test), replace=False)
+    test_idx = np.setdiff1d(np.arange(n_phrases), train_idx)
 
-n_phrases = len(data)
-train_idx = np.random.choice(np.arange(n_phrases), int(n_phrases*perc_test), replace=False)
-test_idx = np.setdiff1d(np.arange(n_phrases), train_idx)
+    train_data = data[train_idx]
+    test_data = data[test_idx]
 
-train_data = data[train_idx]
-test_data = data[test_idx]
+    if net_type == 'GRU':
+        input_layer = Input(shape=(window,), name='input')
+        embedding = Embedding(input_dim=len(word2int), output_dim=latent_dim, input_length=window, name='embedding')(input_layer)
+        if dropout > 0:
+            embedding = SpatialDropout1D(dropout, name='dropout')(embedding)
+        
+        hidden = GRU(latent_dim, return_sequences=True, name='hl1')(embedding)
+        for i in range(n_hidden - 2):
+            hidden = GRU(latent_dim, return_sequences=True, name=f'hl{i+2}')(hidden)
+        hidden = GRU(latent_dim, name='hl{}'.format(n_hidden))(hidden)
+        
+        output_layer = Dense(len(word2int), activation='softmax', name='output')(hidden)
+        
+        model = Model(inputs=input_layer, outputs=output_layer)
+    elif net_type == 'RNN':
+        model = Sequential()
 
-#if w2v:
-#    w2v_model = gensim.models.Word2Vec(data, min_count=1, size=word_feature_dim, window=window)
-#    input_layer = Input(shape=(word_feature_dim,), name='input')
-#else:
-#    num_words = len(np.unique(data.split()))
-#    input_layer = Input(shape=(window,), name='input')
-#    input_layer = Embedding(input_dim=num_words, output_dim=word_feature_dim, input_length=window, name='embedding')(input_layer)
-#    if dropout > 0:
-#        input_layer = SpatialDropout1D(dropout, name='dropout')(input_layer)
+        model.add(Embedding(input_dim=len(word2int), output_dim=latent_dim, input_length=window, name='embedding'))
+        if dropout > 0:
+            model.add(SpatialDropout1D(dropout, name='dropout'))
 
-#input_layer = Input(shape=(window,), name='input')
-#embedding = Embedding(input_dim=word_feature_dim, output_dim=latent_dim, input_length=window, name='embedding')(input_layer)
-#if dropout > 0:
-#    embedding = SpatialDropout1D(dropout, name='dropout')(embedding)
-#
-#hidden = GRU(word_feature_dim, return_sequences=True, name='hl1')(embedding)
-#for i in range(n_hidden_layers-2):
-#    hidden = GRU(word_feature_dim, return_sequences=True, name='hl{}'.format(i+2))(hidden)
-#hidden = GRU(word_feature_dim, name='hl{}'.format(n_hidden_layers))(hidden)
-#
-#output_layer = Dense(len(word2int), activation='softmax', name='output')(hidden)
-#
-#model = Model(inputs=input_layer, outputs=output_layer)
+        for i in range(1, n_hidden):
+            model.add(SimpleRNN(latent_dim, return_sequences=True, name=f'hl{i}'))
+        model.add(SimpleRNN(latent_dim, name=f'hl{n_hidden}'))
+        model.add(Dense(len(word2int), activation='softmax', name='output'))
 
-model = Sequential()
+    train_data_generator = DataGenerator(train_data, word2int, window, batch_size)
+    test_data_generator = DataGenerator(test_data, word2int, window, batch_size)
 
-model.add(Embedding(input_dim=word_feature_dim, output_dim=latent_dim, input_length=window, name='embedding'))
-if dropout > 0:
-    model.add(SpatialDropout1D(dropout, name='dropout'))
+    optim_adam = Adam(learning_rate=learning_rate)
+    model.compile(loss='categorical_crossentropy', optimizer=optim_adam, metrics=['categorical_accuracy'])
+    model.fit(train_data_generator, steps_per_epoch=train_data_generator.get_n_steps_in_epoch(),
+            validation_data=test_data_generator, validation_steps=test_data_generator.get_n_steps_in_epoch(),
+            epochs=epochs)
 
-for i in range(1, n_hidden_layers):
-    model.add(SimpleRNN(word_feature_dim, return_sequences=True, name='hl{}'.format(i)))
-model.add(SimpleRNN(word_feature_dim, name='hl{}'.format(n_hidden_layers)))
-model.add(Dense(len(word2int), activation='softmax', name='output'))
+    return model
 
-train_data_generator = DataGenerator(train_data, word2int, word_feature_dim, window, batch_size)
-test_data_generator = DataGenerator(test_data, word2int, word_feature_dim, window, batch_size)
 
-optim_adam = adam(lr=0.0001)
-model.compile(loss='categorical_crossentropy', optimizer=optim_adam, metrics=['categorical_accuracy'])
-model.fit_generator(train_data_generator, steps_per_epoch=train_data_generator.get_n_steps_in_epoch(),
-                    validation_data=test_data_generator, validation_steps=test_data_generator.get_n_steps_in_epoch(),
-                    epochs=epochs)
+if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser(description='Train a RNN to generate tweets.')
+    parser.add_argument('--input', '-i', type=str,
+                        help='input file')
+    parser.add_argument('--net-type', '-n', type=str, default='RNN',
+                        help='neural network type: RNN or GRU')
+    parser.add_argument('--latent-dim', '-L', type=int, default=50,
+                        help='latent space dimension')
+    parser.add_argument('--window', '-w', type=int, default=5,
+                        help='scan window dimension')
+    parser.add_argument('--dropout', '-d', type=float, default=0,
+                        help='fraction of the input units to drop. Set to 0 to disable')
+    parser.add_argument('--batch-size', '-b', type=int, default=32,
+                        help='size of the batches')
+    parser.add_argument('--epochs', '-e', type=int, default=100,
+                        help='number of epochs')
+    parser.add_argument('--learning-rate', '-l', type=float, default=0.0001,
+                        help='larning rate for training the model')
+    parser.add_argument('--perc-test', '-t', type=float, default=0.2,
+                        help='percent of data to reserve for testing')
+    parser.add_argument('--hidden', '-h', type=int, default=2,
+                        help='number of hidden layers')
+    parser.add_argument('--remove', '-r', nargs='+', default=[],
+                        help='regular expressions to remove from input texts')
+    parser.add_argument('--output-model-file', '-o', type=str, default='model',
+                        help='path where to save the output model')
+
+    args = parser.parse_args()
+
+    model = train(args.input, args.net_type, args.latent_dim, args.window, args.dropout, args.batch_size,
+                  args.epochs, args.perc_test, args.hidden, args.remove)
+    
+    model.save(args.output_model_file)

@@ -1,11 +1,10 @@
 import numpy as np
 
 class DataGenerator(object):
-    def __init__(self, data, dictionary, word_dim, window, batch_size):
+    def __init__(self, data, dictionary, window, batch_size):
         
         self.batch_size = batch_size
         self.window = window
-        self.word_dim = word_dim
         self._data_size = len(data)
         self._dictionary = dictionary
         self._data = data

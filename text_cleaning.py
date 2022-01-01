@@ -10,7 +10,7 @@ def remove_newlines(string):
 def remove_words(words_to_remove):
     def run(string):
         for word in words_to_remove:
-            string = string.replace(word, '')
+            string = re.sub(word, '', string)
         
         return string
     

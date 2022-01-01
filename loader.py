@@ -3,6 +3,11 @@ import pandas as pd
 import text_cleaning as tc
 
 from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk import download
+
+
+download('punkt')
+
 
 class Loader(object):
     
@@ -15,7 +20,7 @@ class Loader(object):
         if self.loader_type == 'vicinitas':
             texts = self.vicinitas_loading(fname, words_to_remove)
         else:
-            raise(ValueError("The only loader implemented by now is 'vicinitas'"))
+            raise(ValueError("The only loader implemented for now is 'vicinitas'"))
         
         data = [] 
         
