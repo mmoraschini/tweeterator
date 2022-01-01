@@ -27,8 +27,8 @@ def train(input, net_type, latent_dim, window, dropout, batch_size, epochs,
           learning_rate, perc_test, n_hidden, regex_to_remove):
 
     loader = Loader('vicinitas')
-    data = loader.load(input, window=window+1, words_to_remove=regex_to_remove)
-    data = np.array(data)
+    data = loader.load(input, window=window + 1, regex_to_remove=regex_to_remove)
+    data = np.array(data, dtype=object)
 
     word2int = {}
     int2word = {}
@@ -39,12 +39,10 @@ def train(input, net_type, latent_dim, window, dropout, batch_size, epochs,
                 word2int[word] = idx
                 int2word[idx] = word
                 idx += 1
-            else:
-                continue
 
     n_phrases = len(data)
-    train_idx = np.random.choice(np.arange(n_phrases), int(n_phrases*perc_test), replace=False)
-    test_idx = np.setdiff1d(np.arange(n_phrases), train_idx)
+    test_idx = np.random.choice(np.arange(n_phrases), int(n_phrases * perc_test), replace=False)
+    train_idx = np.setdiff1d(np.arange(n_phrases), test_idx)
 
     train_data = data[train_idx]
     test_data = data[test_idx]
@@ -108,7 +106,7 @@ if __name__ == "__main__":
                         help='larning rate for training the model')
     parser.add_argument('--perc-test', '-t', type=float, default=0.2,
                         help='percent of data to reserve for testing')
-    parser.add_argument('--hidden', '-h', type=int, default=2,
+    parser.add_argument('--hidden', '-H', type=int, default=2,
                         help='number of hidden layers')
     parser.add_argument('--remove', '-r', nargs='+', default=[],
                         help='regular expressions to remove from input texts')
@@ -118,6 +116,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model = train(args.input, args.net_type, args.latent_dim, args.window, args.dropout, args.batch_size,
-                  args.epochs, args.perc_test, args.hidden, args.remove)
+                  args.epochs, args.learning_rate, args.perc_test, args.hidden, args.remove)
     
     model.save(args.output_model_file)

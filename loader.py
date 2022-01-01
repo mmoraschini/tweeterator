@@ -15,10 +15,10 @@ class Loader(object):
         
         self.loader_type = loader_type
         
-    def load(self, fname, window, words_to_remove):
+    def load(self, fname, window, regex_to_remove):
         
         if self.loader_type == 'vicinitas':
-            texts = self.vicinitas_loading(fname, words_to_remove)
+            texts = self.vicinitas_loading(fname, regex_to_remove)
         else:
             raise(ValueError("The only loader implemented for now is 'vicinitas'"))
         
@@ -36,15 +36,15 @@ class Loader(object):
         
         return data
     
-    def vicinitas_loading(self, fname, words_to_remove):
+    def vicinitas_loading(self, fname, regex_to_remove):
         tweet_df = pd.read_excel(fname)
         
         texts = tweet_df['Text']
         
         texts = texts.apply(tc.remove_urls)
         texts = texts.apply(tc.remove_newlines)
-        if len(words_to_remove) > 0:
-            texts = texts.apply(tc.remove_words(words_to_remove))
+        if len(regex_to_remove) > 0:
+            texts = texts.apply(tc.remove_words(regex_to_remove))
         texts = texts.apply(str.strip)
         texts = texts.apply(tc.clean_symbols)
         texts = texts.apply(tc.flatten_mentions)

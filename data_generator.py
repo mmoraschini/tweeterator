@@ -6,8 +6,7 @@ class DataGenerator(object):
         self.batch_size = batch_size
         self.window = window
         self._data_size = len(data)
-        self._dictionary = dictionary
-        self._data = data
+        self._data = [[dictionary[word] for word in sentence] for sentence in data]
         self._i = 0
         self._n_words = len(dictionary)
     
@@ -40,8 +39,8 @@ class DataGenerator(object):
             n_examples = len(sentence) - self.window + 1
             
             for j in range(n_examples):
-                X[c,:] = [self._dictionary[word] for word in sentence[j:j+self.window]]
-                Y[c,self._dictionary[sentence[j+1]]] = 1
+                X[c,:] = sentence[j:j+self.window]
+                Y[c,sentence[j+1]] = 1
                 
                 c += 1
                 
