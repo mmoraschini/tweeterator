@@ -1,3 +1,4 @@
+import os
 import argparse
 import pickle
 
@@ -87,7 +88,7 @@ def train(input, net_type, latent_dim, window, dropout, batch_size, epochs,
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Train a RNN to generate tweets.')
-    parser.add_argument('--input', '-i', type=str,
+    parser.add_argument('--input', '-i', type=str, required=True,
                         help='input file')
     parser.add_argument('--net-type', '-n', type=str, default='RNN',
                         help='neural network type: RNN or GRU')
@@ -109,7 +110,7 @@ if __name__ == "__main__":
                         help='number of hidden layers')
     parser.add_argument('--remove', '-r', nargs='+', default=[],
                         help='regular expressions to remove from input texts')
-    parser.add_argument('--output-model-file', '-o', type=str, default='model',
+    parser.add_argument('--output-model-path', '-o', type=str, default='model', required=True,
                         help='path where to save the output model')
 
     args = parser.parse_args()
@@ -117,9 +118,10 @@ if __name__ == "__main__":
     model, w2i, i2w = train(args.input, args.net_type, args.latent_dim, args.window, args.dropout, args.batch_size,
                   args.epochs, args.learning_rate, args.perc_test, args.hidden, args.remove)
     
-    model.save(args.output_model_file)
+    output_folder = os.path.join('output', args.output_model_path)
+    model.save(output_folder)
 
-    dicts_dump_file = '.'.join(args.output_model_file.split['.'][:-1]) + '.pkl'
+    dicts_dump_file = os.path.join('output', args.output_model_path + '.pkl')
     with open(dicts_dump_file, 'wb') as f:
         pickle.dump(w2i, f)
         pickle.dump(i2w, f)
