@@ -23,10 +23,10 @@ except Exception as e:
     print(e)
 
 
-def train(input, net_type, latent_dim, window, dropout, batch_size, epochs,
+def train(input, loader_type, net_type, latent_dim, n_units, window, dropout, batch_size, epochs,
           learning_rate, perc_test, n_hidden, regex_to_remove):
 
-    loader = Loader('vicinitas')
+    loader = Loader(loader_type)
     data = loader.load(input, window=window + 1, regex_to_remove=regex_to_remove)
     data = np.array(data, dtype=object)
 
@@ -53,10 +53,11 @@ def train(input, net_type, latent_dim, window, dropout, batch_size, epochs,
         if dropout > 0:
             embedding = SpatialDropout1D(dropout, name='dropout')(embedding)
         
-        hidden = GRU(latent_dim, return_sequences=True, name='hl1')(embedding)
+        hidden = GRU(n_units, return_sequences=True, name='hl1')(embedding)
         for i in range(n_hidden - 2):
-            hidden = GRU(latent_dim, return_sequences=True, name=f'hl{i+2}')(hidden)
-        hidden = GRU(latent_dim, name='hl{}'.format(n_hidden))(hidden)
+            hidden = GRU(n_units, return_sequences=True, name=f'hl{i+2}')(hidden)
+        if hidden > 1:
+            hidden = GRU(n_units, name='hl{}'.format(n_hidden))(hidden)
         
         output_layer = Dense(len(word2int), activation='softmax', name='output')(hidden)
         
@@ -69,8 +70,8 @@ def train(input, net_type, latent_dim, window, dropout, batch_size, epochs,
             model.add(SpatialDropout1D(dropout, name='dropout'))
 
         for i in range(1, n_hidden):
-            model.add(SimpleRNN(latent_dim, return_sequences=True, name=f'hl{i}'))
-        model.add(SimpleRNN(latent_dim, name=f'hl{n_hidden}'))
+            model.add(SimpleRNN(n_units, return_sequences=True, name=f'hl{i}'))
+        model.add(SimpleRNN(n_units, name=f'hl{n_hidden}'))
         model.add(Dense(len(word2int), activation='softmax', name='output'))
 
     train_data_generator = DataGenerator(train_data, word2int, window, batch_size)
@@ -90,10 +91,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train a RNN to generate tweets.')
     parser.add_argument('--input', '-i', type=str, required=True,
                         help='input file')
+    parser.add_argument('--loader-type', '-t', type=str, default='vicinitas',
+                        help='type of dataset to load: "vicinitas" or "TrackMyHashtag"')
     parser.add_argument('--net-type', '-n', type=str, default='RNN',
                         help='neural network type: RNN or GRU')
-    parser.add_argument('--latent-dim', '-L', type=int, default=50,
+    parser.add_argument('--latent-dim', '-L', type=int, default=256,
                         help='latent space dimension')
+    parser.add_argument('--n-units', '-u', type=int, default=1024,
+                        help='number of recurrent units')
     parser.add_argument('--window', '-w', type=int, default=5,
                         help='scan window dimension')
     parser.add_argument('--dropout', '-d', type=float, default=0,
@@ -115,7 +120,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    model, w2i, i2w = train(args.input, args.net_type, args.latent_dim, args.window, args.dropout, args.batch_size,
+    model, w2i, i2w = train(args.input, args.loader_type, args.net_type, args.latent_dim, args.n_units, args.window, args.dropout, args.batch_size,
                   args.epochs, args.learning_rate, args.perc_test, args.hidden, args.remove)
     
     output_folder = os.path.join('output', args.output_model_path)
