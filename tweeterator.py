@@ -4,18 +4,18 @@ import pickle
 
 import numpy as np
 
-from tensorflow.keras.models import Model, Sequential
-from tensorflow.keras.layers import Dense, Input, GRU, Flatten, SpatialDropout1D, SimpleRNN
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, GRU, SpatialDropout1D, SimpleRNN, LSTM
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.optimizers import RMSprop, Adam
-from tensorflow.test import gpu_device_name
+from tensorflow import config as tfconfig
 
 from data_generator import DataGenerator
 from loader import Loader
 
 
 try:
-    if gpu_device_name():
+    if tfconfig.list_physical_devices():
         print('GPU found')
     else:
         print("No GPU found")
@@ -23,12 +23,11 @@ except Exception as e:
     print(e)
 
 
-def train(input, loader_type, net_type, latent_dim, n_units, window, dropout, batch_size, epochs,
-          learning_rate, perc_test, n_hidden, regex_to_remove):
+def train(data, net_type, latent_dim, n_units, window, dropout, batch_size, epochs,
+          learning_rate, perc_test, n_hidden):
 
-    loader = Loader(loader_type)
-    data = loader.load(input, window=window + 1, regex_to_remove=regex_to_remove)
-    data = np.array(data, dtype=object)
+    if type(n_units) not in [np.ndarray, list]:
+        n_units = [n_units]
 
     word2int = {}
     int2word = {}
@@ -48,42 +47,44 @@ def train(input, loader_type, net_type, latent_dim, n_units, window, dropout, ba
     test_data = data[test_idx]
 
     if net_type == 'GRU':
-        input_layer = Input(shape=(window,), name='input')
-        embedding = Embedding(input_dim=len(word2int), output_dim=latent_dim, input_length=window, name='embedding')(input_layer)
-        if dropout > 0:
-            embedding = SpatialDropout1D(dropout, name='dropout')(embedding)
-        
-        hidden = GRU(n_units, return_sequences=True, name='hl1')(embedding)
-        for i in range(n_hidden - 2):
-            hidden = GRU(n_units, return_sequences=True, name=f'hl{i+2}')(hidden)
-        if hidden > 1:
-            hidden = GRU(n_units, name='hl{}'.format(n_hidden))(hidden)
-        
-        output_layer = Dense(len(word2int), activation='softmax', name='output')(hidden)
-        
-        model = Model(inputs=input_layer, outputs=output_layer)
+        layer = GRU
     elif net_type == 'RNN':
-        model = Sequential()
+        layer = SimpleRNN
+    elif net_type == 'LSTM':
+        layer = LSTM
 
-        model.add(Embedding(input_dim=len(word2int), output_dim=latent_dim, input_length=window, name='embedding'))
-        if dropout > 0:
-            model.add(SpatialDropout1D(dropout, name='dropout'))
+    model = Sequential()
 
-        for i in range(1, n_hidden):
-            model.add(SimpleRNN(n_units, return_sequences=True, name=f'hl{i}'))
-        model.add(SimpleRNN(n_units, name=f'hl{n_hidden}'))
-        model.add(Dense(len(word2int), activation='softmax', name='output'))
+    model.add(Embedding(input_dim=len(word2int), output_dim=latent_dim, input_length=window, name='embedding'))
+    if dropout > 0:
+        model.add(SpatialDropout1D(dropout, name='dropout'))
+
+    return_sequences = True
+    for i in range(0, n_hidden):
+        if i == n_hidden - 1:
+            return_sequences = False
+        model.add(layer(n_units[i], return_sequences=return_sequences, name=f'hl{i+1}'))
+
+    model.add(Dense(len(word2int), activation='softmax', name='output'))
 
     train_data_generator = DataGenerator(train_data, word2int, window, batch_size)
     test_data_generator = DataGenerator(test_data, word2int, window, batch_size)
 
     optim_adam = Adam(learning_rate=learning_rate)
     model.compile(loss='categorical_crossentropy', optimizer=optim_adam, metrics=['categorical_accuracy'])
-    model.fit(train_data_generator, steps_per_epoch=train_data_generator.get_n_steps_in_epoch(),
-            validation_data=test_data_generator, validation_steps=test_data_generator.get_n_steps_in_epoch(),
-            epochs=epochs)
+    history = model.fit(train_data_generator, steps_per_epoch=train_data_generator.get_n_steps_in_epoch(),
+                        validation_data=test_data_generator, validation_steps=test_data_generator.get_n_steps_in_epoch(),
+                        epochs=epochs)
 
-    return model, word2int, int2word
+    conf = {
+        'net_type': net_type, 'latent_dim': latent_dim, 'n_units': n_units, 'window': window,
+        'dropout':dropout, 'batch_size':batch_size, 'epochs': epochs, 'learning_rate': learning_rate,
+        'perc_test': perc_test, 'n_hidden': n_hidden
+    }
+
+    dictionaries = {'word2int': word2int, 'int2word': int2word}
+
+    return model, history, dictionaries, conf
 
 
 if __name__ == "__main__":
@@ -97,7 +98,7 @@ if __name__ == "__main__":
                         help='neural network type: RNN or GRU')
     parser.add_argument('--latent-dim', '-L', type=int, default=256,
                         help='latent space dimension')
-    parser.add_argument('--n-units', '-u', type=int, default=1024,
+    parser.add_argument('--n-units', '-u', nargs='+', default=[1024],
                         help='number of recurrent units')
     parser.add_argument('--window', '-w', type=int, default=5,
                         help='scan window dimension')
@@ -109,7 +110,7 @@ if __name__ == "__main__":
                         help='number of epochs')
     parser.add_argument('--learning-rate', '-l', type=float, default=0.0001,
                         help='larning rate for training the model')
-    parser.add_argument('--perc-test', '-t', type=float, default=0.2,
+    parser.add_argument('--perc-test', '-p', type=float, default=0.2,
                         help='percent of data to reserve for testing')
     parser.add_argument('--hidden', '-H', type=int, default=2,
                         help='number of hidden layers')
@@ -120,13 +121,19 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    model, w2i, i2w = train(args.input, args.loader_type, args.net_type, args.latent_dim, args.n_units, args.window, args.dropout, args.batch_size,
-                  args.epochs, args.learning_rate, args.perc_test, args.hidden, args.remove)
+    loader = Loader(args.loader_type)
+    data = loader.load(args.input, window=args.window + 1, regex_to_remove=args.remove)
+    data = np.array(data, dtype=object)
+
+    model, history, dictionaries, conf = train(data, args.net_type, args.latent_dim, args.n_units,
+                                               args.window, args.dropout, args.batch_size,
+                                               args.epochs, args.learning_rate, args.perc_test, args.hidden)
     
     output_folder = os.path.join('output', args.output_model_path)
     model.save(output_folder)
 
     dicts_dump_file = os.path.join('output', args.output_model_path + '.pkl')
     with open(dicts_dump_file, 'wb') as f:
-        pickle.dump(w2i, f)
-        pickle.dump(i2w, f)
+        pickle.dump(history, f)
+        pickle.dump(dictionaries, f)
+        pickle.dump(conf, f)

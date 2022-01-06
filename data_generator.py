@@ -36,11 +36,11 @@ class DataGenerator(object):
             
             sentence = self._data[self._i]
             
-            n_examples = len(sentence) - self.window + 1
+            n_examples = len(sentence) - self.window
             
             for j in range(n_examples):
                 X[c,:] = sentence[j:j+self.window]
-                Y[c,sentence[j+1]] = 1
+                Y[c,sentence[j+self.window]] = 1
                 
                 c += 1
                 
