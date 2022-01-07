@@ -24,7 +24,7 @@ except Exception as e:
 
 
 def train(data, net_type, latent_dim, n_units, window, dropout, batch_size, epochs,
-          learning_rate, perc_test, n_hidden):
+          learning_rate, perc_test, n_hidden, shuffle):
 
     if type(n_units) not in [np.ndarray, list]:
         n_units = [n_units]
@@ -67,8 +67,8 @@ def train(data, net_type, latent_dim, n_units, window, dropout, batch_size, epoc
 
     model.add(Dense(len(word2int), activation='softmax', name='output'))
 
-    train_data_generator = DataGenerator(train_data, word2int, window, batch_size)
-    test_data_generator = DataGenerator(test_data, word2int, window, batch_size)
+    train_data_generator = DataGenerator(train_data, word2int, window, batch_size, shuffle)
+    test_data_generator = DataGenerator(test_data, word2int, window, batch_size, shuffle)
 
     optim_adam = Adam(learning_rate=learning_rate)
     model.compile(loss='categorical_crossentropy', optimizer=optim_adam, metrics=['categorical_accuracy'])
@@ -92,8 +92,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train a RNN to generate tweets.')
     parser.add_argument('--input', '-i', type=str, required=True,
                         help='input file')
-    parser.add_argument('--loader-type', '-t', type=str, default='vicinitas',
-                        help='type of dataset to load: "vicinitas" or "TrackMyHashtag"')
+    parser.add_argument('--file-type', '-t', type=str, required=True,
+                        help='Input file type, the possible options are \'csv\' or \'excel\'')
+    parser.add_argument('--column', '-c', type=str, default='vicinitas',
+                        help='Name of the column of the input file containing the tweets')
     parser.add_argument('--net-type', '-n', type=str, default='RNN',
                         help='neural network type: RNN or GRU')
     parser.add_argument('--latent-dim', '-L', type=int, default=256,
@@ -116,6 +118,8 @@ if __name__ == "__main__":
                         help='number of hidden layers')
     parser.add_argument('--remove', '-r', nargs='+', default=[],
                         help='regular expressions to remove from input texts')
+    parser.add_argument('--shuffle', '-s', type=bool, default=False,
+                        help='whether to shuffle data at the beginning of training and after each epoch')
     parser.add_argument('--output-model-path', '-o', type=str, default='model', required=True,
                         help='path where to save the output model')
 
@@ -125,9 +129,9 @@ if __name__ == "__main__":
     data = loader.load(args.input, window=args.window + 1, regex_to_remove=args.remove)
     data = np.array(data, dtype=object)
 
-    model, history, dictionaries, conf = train(data, args.net_type, args.latent_dim, args.n_units,
-                                               args.window, args.dropout, args.batch_size,
-                                               args.epochs, args.learning_rate, args.perc_test, args.hidden)
+    model, history, dictionaries, conf = train(data, args.column, args.latent_dim, args.n_units,
+                                               args.window, args.dropout, args.batch_size, args.epochs,
+                                               args.learning_rate, args.perc_test, args.hidden, args.shuffle)
     
     output_folder = os.path.join('output', args.output_model_path)
     model.save(output_folder)
