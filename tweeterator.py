@@ -1,3 +1,4 @@
+from typing import List, Tuple
 import os
 import argparse
 import pickle
@@ -9,6 +10,7 @@ from tensorflow.keras.layers import Dense, GRU, SpatialDropout1D, SimpleRNN, LST
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.optimizers import RMSprop, Adam
 from tensorflow import config as tfconfig
+from tensorflow.keras.callbacks import History
 
 from data_generator import DataGenerator
 from loader import Loader
@@ -23,8 +25,31 @@ except Exception as e:
     print(e)
 
 
-def train(data, net_type, latent_dim, n_units, window, dropout, batch_size, epochs,
-          learning_rate, perc_test, n_hidden, shuffle):
+def train(data: List[List[str]], net_type: str, latent_dim: int, n_units: List[int],
+          window: int, dropout: float, batch_size: int, epochs: int, learning_rate: float,
+          perc_val: float, n_hidden: int, shuffle: bool) -> Tuple[Sequential, History, dict, dict]:
+    """
+    Train a Neural Network to predict the next word in a sentence
+
+    Args:
+        data (List[List[str]]): list of tokenised sentences, each token is a word represented by a string
+        net_type (str): type of network, allowed vales are 'RNN', 'GRU' and 'LSTM'
+        latent_dim (int): number of embeddings
+        n_units (List[int]): number of units for each hidden layer
+        window (int): size of the training window
+        dropout (float): dropout amount (0 to disable)
+        batch_size (int): batch size
+        epochs (int): number of epochs to train the model for
+        learning_rate (float): learning rate
+        perc_val (float): percentage of input sentences to use for validation
+        n_hidden (int): number of hidden layers
+        shuffle (bool): whether to shuffle the input sentences to create variable batches
+
+    Returns:
+        Tuple[Sequential, History, dict, dict]:
+            the model, the training history, the dictionaries to convert words to int and int to words,
+            a dictionary containing the training parameters
+    """
 
     if type(n_units) not in [np.ndarray, list]:
         n_units = [n_units]
@@ -40,7 +65,7 @@ def train(data, net_type, latent_dim, n_units, window, dropout, batch_size, epoc
                 idx += 1
 
     n_phrases = len(data)
-    test_idx = np.random.choice(np.arange(n_phrases), int(n_phrases * perc_test), replace=False)
+    test_idx = np.random.choice(np.arange(n_phrases), int(n_phrases * perc_val), replace=False)
     train_idx = np.setdiff1d(np.arange(n_phrases), test_idx)
 
     train_data = data[train_idx]
@@ -79,7 +104,7 @@ def train(data, net_type, latent_dim, n_units, window, dropout, batch_size, epoc
     conf = {
         'net_type': net_type, 'latent_dim': latent_dim, 'n_units': n_units, 'window': window,
         'dropout':dropout, 'batch_size':batch_size, 'epochs': epochs, 'learning_rate': learning_rate,
-        'perc_test': perc_test, 'n_hidden': n_hidden
+        'perc_test': perc_val, 'n_hidden': n_hidden
     }
 
     dictionaries = {'word2int': word2int, 'int2word': int2word}

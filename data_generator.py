@@ -1,7 +1,18 @@
+from typing import List, Tuple
 import numpy as np
 
 class DataGenerator(object):
-    def __init__(self, data, dictionary, window, batch_size, shuffle):
+    def __init__(self, data: List[List[str]], dictionary: dict, window: int, batch_size: int, shuffle: bool):
+        """
+        Generate data from a list of tokenised sentences
+
+        Args:
+            data (List[List[str]]): list of tokenised sentences, each token is a word represented by a string
+            dictionary (dict): dictionary to convert words to their int representation
+            window (int): size of the training window
+            batch_size (int): batch size
+            shuffle (bool): whether to randomly shuffle data before training and after each epoch
+        """
         
         self.batch_size = batch_size
         self.window = window
@@ -16,7 +27,13 @@ class DataGenerator(object):
         if self._shuffle:
             np.random.shuffle(self._data)
     
-    def get_n_steps_in_epoch(self):
+    def get_n_steps_in_epoch(self) -> int:
+        """
+        Return how many steps are there in an epoch
+
+        Returns:
+            int: number of steps in an epoch
+        """
         
         if self._data_size % self.batch_size == 0:
             n_steps = self._data_size // self.batch_size
@@ -28,7 +45,15 @@ class DataGenerator(object):
     def __iter__(self):
         return self
     
-    def __next__(self):
+    def __next__(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Return next batch of data
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]:
+                The first element contains the int representation of `batch_size` training sentences of length `window`
+                THe second element contains the one-hot encoding of the next word of the loaded training sentences
+        """
         
         X = np.empty((self.batch_size, self.window), dtype=np.int)
         Y = np.zeros((self.batch_size, self._n_words), dtype=np.int)
