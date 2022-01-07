@@ -1,14 +1,20 @@
 import numpy as np
 
 class DataGenerator(object):
-    def __init__(self, data, dictionary, window, batch_size):
+    def __init__(self, data, dictionary, window, batch_size, shuffle):
         
         self.batch_size = batch_size
         self.window = window
         self._data_size = len(data)
         self._data = [[dictionary[word] for word in sentence] for sentence in data]
         self._i = 0
+        self._curr_step = 0
         self._n_words = len(dictionary)
+        self._shuffle = shuffle
+        self._n_steps_in_epoch = self.get_n_steps_in_epoch()
+
+        if self._shuffle:
+            np.random.shuffle(self._data)
     
     def get_n_steps_in_epoch(self):
         
@@ -50,4 +56,10 @@ class DataGenerator(object):
             
             self._i += 1
         
+        self._curr_step += 1
+        if self._curr_step == self._n_steps_in_epoch:
+            self._curr_step = 0
+            if self._shuffle:
+                np.random.shuffle(self._data)
+
         return X, Y
