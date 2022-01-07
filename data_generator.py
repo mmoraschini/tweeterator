@@ -52,7 +52,7 @@ class DataGenerator(object):
         Returns:
             Tuple[np.ndarray, np.ndarray]:
                 The first element contains the int representation of `batch_size` training sentences of length `window`
-                THe second element contains the one-hot encoding of the next word of the loaded training sentences
+                The second element contains the one-hot encoding of the next word of the loaded training sentences
         """
         
         X = np.empty((self.batch_size, self.window), dtype=np.int)
