@@ -2,7 +2,7 @@ import pandas as pd
 
 import text_cleaning as tc
 
-from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import sent_tokenize
 from nltk import download
 
 
@@ -10,21 +10,25 @@ download('punkt')
 
 
 class Loader(object):
-    
-    def __init__(self, loader_type='vicinitas'):
+
+    def __init__(self, flatten_hashtags=True, flatten_mentions=True) -> None:
+        super().__init__()
+
+        self._flatten_hashtags = flatten_hashtags
+        self._flatten_mentions = flatten_mentions
+            
+    def load(self, fname, file_type, text_column, window, regex_to_remove):
         
-        self.loader_type = loader_type
-        
-    def load(self, fname, window, regex_to_remove):
-        
-        if self.loader_type == 'vicinitas':
-            texts = self._vicinitas_loading(fname, regex_to_remove)
-        elif self.loader_type == 'TrackMyHashtag':
-            texts = self._trackmyhashtag_loading(fname, regex_to_remove)
-        elif self.loader_type == 'text':
-            texts = self._text_loading(fname, regex_to_remove)
+        if file_type == 'csv':
+            tweet_df = pd.read_csv(fname)
+        elif file_type == 'excel':
+            tweet_df = pd.read_excel(fname)
         else:
-            raise(ValueError("The only loader implemented for now is 'vicinitas'"))
+            raise RuntimeError('The only possible options for the input file type are \'csv\' or \'excel\'')
+        
+        texts = tweet_df[text_column]
+        texts = texts.str.lower()
+        texts = self._clean(texts, regex_to_remove)
         
         data = [] 
         
@@ -34,42 +38,14 @@ class Loader(object):
                 if sentence[-1] == '.':
                     sentence = sentence[:-1]
                 
-                #tokens = word_tokenize(sentence)
                 tokens = sentence.split(' ')
                 if len(tokens) < window + 1:
                     continue
                 
-                sentence_array = [word.lower() for word in tokens if len(word) > 0]
+                sentence_array = [word for word in tokens if len(word) > 0]
                 data.append(sentence_array)
         
         return data
-    
-    def _vicinitas_loading(self, fname, regex_to_remove):
-        tweet_df = pd.read_excel(fname)
-        
-        texts = tweet_df['Text']
-        
-        texts = self._clean(texts, regex_to_remove)
-        
-        return texts
-    
-    def _trackmyhashtag_loading(self, fname, regex_to_remove):
-        tweet_df = pd.read_csv(fname)
-        
-        texts = tweet_df['Tweet Content']
-
-        texts = self._clean(texts, regex_to_remove)
-        
-        return texts
-    
-    def _text_loading(self, fname, regex_to_remove):
-        tweet_df = pd.read_csv(fname)
-        
-        texts = tweet_df['text']
-
-        texts = self._clean(texts, regex_to_remove)
-        
-        return texts
     
     def _clean(self, texts_series, regex_to_remove):
         texts_series = texts_series.apply(tc.remove_urls)
@@ -77,8 +53,10 @@ class Loader(object):
         if len(regex_to_remove) > 0:
             texts_series = texts_series.apply(tc.remove_words(regex_to_remove))
         texts_series = texts_series.apply(str.strip)
-        texts_series = texts_series.apply(tc.flatten_mentions)
-        texts_series = texts_series.apply(tc.flatten_hashtags)
+        if self._flatten_hashtags:
+            texts_series = texts_series.apply(tc.flatten_hashtags)
+        if self._flatten_mentions:
+            texts_series = texts_series.apply(tc.flatten_mentions)
         texts_series = texts_series.apply(tc.clean_symbols)
 
         return texts_series
