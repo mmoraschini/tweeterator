@@ -17,10 +17,19 @@ class DataGenerator(object):
         self.batch_size = batch_size
         self.window = window
         self._data_size = len(data)
-        self._data = [[dictionary[word] for word in sentence] for sentence in data]
+        self._n_words = len(dictionary)
+
+        self._data = []
+        for sentence in data:
+            for word in sentence:
+                try:
+                    self._data.append(dictionary[word])
+                except KeyError:
+                    self._data.append(self._n_words)
+
+        # self._data = [[dictionary[word] for word in sentence] for sentence in data]
         self._i = 0
         self._curr_step = 0
-        self._n_words = len(dictionary)
         self._shuffle = shuffle
         self._n_steps_in_epoch = self.get_n_steps_in_epoch()
 

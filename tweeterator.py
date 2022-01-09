@@ -6,14 +6,14 @@ import pickle
 import numpy as np
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, GRU, SpatialDropout1D, SimpleRNN, LSTM
-from tensorflow.keras.layers import Embedding
-from tensorflow.keras.optimizers import RMSprop, Adam
+from tensorflow.keras.layers import GRU, SimpleRNN, LSTM
+from tensorflow.keras.optimizers import Adam
 from tensorflow import config as tfconfig
 from tensorflow.keras.callbacks import History
 
 from data_generator import DataGenerator
 from loader import Loader
+import net
 
 
 try:
@@ -78,19 +78,7 @@ def train(data: List[List[str]], net_type: str, latent_dim: int, n_units: List[i
     elif net_type == 'LSTM':
         layer = LSTM
 
-    model = Sequential()
-
-    model.add(Embedding(input_dim=len(word2int), output_dim=latent_dim, input_length=window, name='embedding'))
-    if dropout > 0:
-        model.add(SpatialDropout1D(dropout, name='dropout'))
-
-    return_sequences = True
-    for i in range(0, n_hidden):
-        if i == n_hidden - 1:
-            return_sequences = False
-        model.add(layer(n_units[i], return_sequences=return_sequences, name=f'hl{i+1}'))
-
-    model.add(Dense(len(word2int), activation='softmax', name='output'))
+    model = net.single_branch(window, layer, len(word2int), latent_dim, n_units, dropout, n_hidden)
 
     train_data_generator = DataGenerator(train_data, word2int, window, batch_size, shuffle)
     test_data_generator = DataGenerator(test_data, word2int, window, batch_size, shuffle)
@@ -122,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument('--column', '-c', type=str, default='vicinitas',
                         help='Name of the column of the input file containing the tweets')
     parser.add_argument('--net-type', '-n', type=str, default='RNN',
-                        help='neural network type: RNN or GRU')
+                        help='neural network type: RNN, GRU or LSTM')
     parser.add_argument('--latent-dim', '-L', type=int, default=256,
                         help='latent space dimension')
     parser.add_argument('--n-units', '-u', nargs='+', default=[1024],
@@ -139,7 +127,7 @@ if __name__ == "__main__":
                         help='larning rate for training the model')
     parser.add_argument('--perc-test', '-p', type=float, default=0.2,
                         help='percent of data to reserve for testing')
-    parser.add_argument('--hidden', '-H', type=int, default=2,
+    parser.add_argument('--hidden', '-H', type=int, default=1,
                         help='number of hidden layers')
     parser.add_argument('--remove', '-r', nargs='+', default=[],
                         help='regular expressions to remove from input texts')
@@ -150,7 +138,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    loader = Loader(args.loader_type)
+    loader = Loader(args.column)
     data = loader.load(args.input, window=args.window + 1, regex_to_remove=args.remove)
     data = np.array(data, dtype=object)
 

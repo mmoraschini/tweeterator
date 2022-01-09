@@ -63,6 +63,7 @@ def clean_symbols(string: str) -> str:
         str: the input string with symbols removed
     """
     string = string.replace("’", "'")
+    string = string.replace("&amp;", "and")
     return re.sub(r'[^\w .\'#@]', '', string)
 
 def flatten_mentions(string: str) -> str:
