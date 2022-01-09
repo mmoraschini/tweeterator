@@ -6,14 +6,14 @@ import pickle
 import numpy as np
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, GRU, SpatialDropout1D, SimpleRNN, LSTM
-from tensorflow.keras.layers import Embedding
+from tensorflow.keras.layers import GRU, SimpleRNN, LSTM
 from tensorflow.keras.optimizers import RMSprop, Adam
 from tensorflow import config as tfconfig
 from tensorflow.keras.callbacks import History
 
 from data_generator import DataGenerator
 from loader import Loader
+import net
 
 
 try:
@@ -78,19 +78,7 @@ def train(data: List[List[str]], net_type: str, latent_dim: int, n_units: List[i
     elif net_type == 'LSTM':
         layer = LSTM
 
-    model = Sequential()
-
-    model.add(Embedding(input_dim=len(word2int), output_dim=latent_dim, input_length=window, name='embedding'))
-    if dropout > 0:
-        model.add(SpatialDropout1D(dropout, name='dropout'))
-
-    return_sequences = True
-    for i in range(0, n_hidden):
-        if i == n_hidden - 1:
-            return_sequences = False
-        model.add(layer(n_units[i], return_sequences=return_sequences, name=f'hl{i+1}'))
-
-    model.add(Dense(len(word2int), activation='softmax', name='output'))
+    model = net.single_branch(window, layer, len(word2int), latent_dim, n_units, dropout, n_hidden)
 
     train_data_generator = DataGenerator(train_data, word2int, window, batch_size, shuffle)
     test_data_generator = DataGenerator(test_data, word2int, window, batch_size, shuffle)

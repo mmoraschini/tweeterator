@@ -2,7 +2,8 @@ from typing import List, Tuple
 import numpy as np
 
 class DataGenerator(object):
-    def __init__(self, data: List[List[str]], dictionary: dict, window: int, batch_size: int, shuffle: bool):
+    def __init__(self, data: List[List[Tuple[str, str]]], w2i: dict, pos2i: dict, window: int,
+                 batch_size: int, shuffle: bool):
         """
         Generate data from a list of tokenised sentences
 
@@ -17,24 +18,19 @@ class DataGenerator(object):
         self.batch_size = batch_size
         self.window = window
         self._data_size = len(data)
-        self._n_words = len(dictionary)
-
-        self._data = []
-        for sentence in data:
-            for word in sentence:
-                try:
-                    self._data.append(dictionary[word])
-                except KeyError:
-                    self._data.append(self._n_words)
-
-        # self._data = [[dictionary[word] for word in sentence] for sentence in data]
+        self._word_data = np.array([[w2i[tok[0]] for tok in sentence] for sentence in data], dtype=object)
+        self._pos_data = np.array([[pos2i[tok[1]] for tok in sentence] for sentence in data], dtype=object)
         self._i = 0
         self._curr_step = 0
+        self._n_words = len(w2i)
+        self._n_pos = len(pos2i)
         self._shuffle = shuffle
         self._n_steps_in_epoch = self.get_n_steps_in_epoch()
 
         if self._shuffle:
-            np.random.shuffle(self._data)
+            shuffle_int = np.random.choice(range(self._data_size), self._data_size, replace=False)
+            self._word_data = self._word_data[shuffle_int]
+            self._pos_data = self._pos_data[shuffle_int]
     
     def get_n_steps_in_epoch(self) -> int:
         """
@@ -64,8 +60,11 @@ class DataGenerator(object):
                 The second element contains the one-hot encoding of the next word of the loaded training sentences
         """
         
-        X = np.empty((self.batch_size, self.window), dtype=np.int)
-        Y = np.zeros((self.batch_size, self._n_words), dtype=np.int)
+        w_X = np.empty((self.batch_size, self.window), dtype=np.int)
+        w_Y = np.zeros((self.batch_size, self._n_words), dtype=np.int)
+
+        pos_X = np.empty((self.batch_size, self.window), dtype=np.int)
+        pos_Y = np.zeros((self.batch_size, self._n_pos), dtype=np.int)
         
         stop = False
         c = 0
@@ -74,13 +73,17 @@ class DataGenerator(object):
             if self._i >= self._data_size:
                 self._i = 0
             
-            sentence = self._data[self._i]
+            sentence = self._word_data[self._i]
+            pos = self._pos_data[self._i]
             
             n_examples = len(sentence) - self.window
             
             for j in range(n_examples):
-                X[c,:] = sentence[j:j+self.window]
-                Y[c,sentence[j+self.window]] = 1
+                w_X[c,:] = sentence[j:j+self.window]
+                pos_X[c,:] = pos[j:j+self.window]
+                
+                w_Y[c,sentence[j+self.window]] = 1
+                pos_Y[c,pos[j+self.window]] = 1
                 
                 c += 1
                 
@@ -94,6 +97,8 @@ class DataGenerator(object):
         if self._curr_step == self._n_steps_in_epoch:
             self._curr_step = 0
             if self._shuffle:
-                np.random.shuffle(self._data)
+                shuffle_int = np.random.choice(range(self._data_size), self._data_size, replace=False)
+                self._word_data = self._word_data[shuffle_int]
+                self._pos_data = self._pos_data[shuffle_int]
 
-        return X, Y
+        return [w_X, pos_X], [w_Y, pos_Y]
