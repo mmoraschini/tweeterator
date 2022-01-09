@@ -7,7 +7,7 @@ import numpy as np
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import GRU, SimpleRNN, LSTM
-from tensorflow.keras.optimizers import RMSprop, Adam
+from tensorflow.keras.optimizers import Adam
 from tensorflow import config as tfconfig
 from tensorflow.keras.callbacks import History
 
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument('--column', '-c', type=str, default='vicinitas',
                         help='Name of the column of the input file containing the tweets')
     parser.add_argument('--net-type', '-n', type=str, default='RNN',
-                        help='neural network type: RNN or GRU')
+                        help='neural network type: RNN, GRU or LSTM')
     parser.add_argument('--latent-dim', '-L', type=int, default=256,
                         help='latent space dimension')
     parser.add_argument('--n-units', '-u', nargs='+', default=[1024],
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                         help='larning rate for training the model')
     parser.add_argument('--perc-test', '-p', type=float, default=0.2,
                         help='percent of data to reserve for testing')
-    parser.add_argument('--hidden', '-H', type=int, default=2,
+    parser.add_argument('--hidden', '-H', type=int, default=1,
                         help='number of hidden layers')
     parser.add_argument('--remove', '-r', nargs='+', default=[],
                         help='regular expressions to remove from input texts')
@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    loader = Loader(args.loader_type)
+    loader = Loader(args.column)
     data = loader.load(args.input, window=args.window + 1, regex_to_remove=args.remove)
     data = np.array(data, dtype=object)
 

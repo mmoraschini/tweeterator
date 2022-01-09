@@ -8,8 +8,9 @@ class DataGenerator(object):
         Generate data from a list of tokenised sentences
 
         Args:
-            data (List[List[str]]): list of tokenised sentences, each token is a word represented by a string
-            dictionary (dict): dictionary to convert words to their int representation
+            data (List[List[Tuple[str, str]]]): list of tokenised sentences, each token is a list of length 2 containing the word and the POS tag
+            w2i (dict): dictionary to convert words to their int representation
+            pos2i (dict): dictionary to convert POS tags to their int representation
             window (int): size of the training window
             batch_size (int): batch size
             shuffle (bool): whether to randomly shuffle data before training and after each epoch
@@ -50,14 +51,14 @@ class DataGenerator(object):
     def __iter__(self):
         return self
     
-    def __next__(self) -> Tuple[np.ndarray, np.ndarray]:
+    def __next__(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Return next batch of data
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]:
-                The first element contains the int representation of `batch_size` training sentences of length `window`
-                The second element contains the one-hot encoding of the next word of the loaded training sentences
+            Tuple[List[np.ndarray], List[np.ndarray]]:
+                The first element contains two np.ndarrays, each containing the int representation of `batch_size` training sentences of length `window`. The first array contains the word data, the second the POS tags data.
+                The second element contains two np.ndarrays, each containing the one-hot encoding of the next element of the loaded training sentences. The first array contains the word data, the second the POS tags data.
         """
         
         w_X = np.empty((self.batch_size, self.window), dtype=np.int)

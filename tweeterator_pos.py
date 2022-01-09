@@ -1,15 +1,17 @@
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import os
 import argparse
 import pickle
 
 import numpy as np
+import nltk
+import tqdm
 
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, GRU, SpatialDropout1D, SimpleRNN, LSTM, Layer
-from tensorflow.keras.layers import Embedding, Input
-from tensorflow.keras.optimizers import RMSprop, Adam
+from tensorflow.keras.layers import  GRU, SimpleRNN, LSTM, Layer
+from tensorflow.keras.layers import Input
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import History
 
 import data_generator_pos
@@ -31,31 +33,37 @@ except Exception as e:
     print(e)
 
 
-
 def train(data: List[List[Tuple[str, str]]], window: int, batch_size: int, epochs: int, perc_val: float,
           shuffle: bool, learning_rate: float, train_two_nets: bool,
           w_net_type: str, w_latent_dim: int, w_n_units: List[int], w_dropout: float, w_n_hidden: int,
-          pos_net_type: str, pos_latent_dim: int, pos_n_units: List[int], pos_dropout: float, pos_n_hidden: int) -> Tuple[Model, History, dict, dict]:
+          pos_net_type: str, pos_latent_dim: int, pos_n_units: List[int], pos_dropout: float, pos_n_hidden: int) -> Tuple[Union[Model, List[Model]], Union[History, List[History]], dict, dict]:
     """
-    Train a Neural Network to predict the next word in a sentence
+    Train a Neural Network to predict the next word in a sentence. The network wants to inputs: the preceding words and the preceding POS tags.
 
     Args:
-        data (List[List[str]]): list of tokenised sentences, each token is a word represented by a string
-        net_type (str): type of network, allowed vales are 'RNN', 'GRU' and 'LSTM'
-        latent_dim (int): number of embeddings
-        n_units (List[int]): number of units for each hidden layer
+        data (List[List[Tuple[str, str]]]): list of tokenised sentences, each token is a list of length 2 containing the word and the POS tag
         window (int): size of the training window
-        dropout (float): dropout amount (0 to disable)
         batch_size (int): batch size
         epochs (int): number of epochs to train the model for
-        learning_rate (float): learning rate
         perc_val (float): percentage of input sentences to use for validation
-        n_hidden (int): number of hidden layers
         shuffle (bool): whether to shuffle the input sentences to create variable batches
+        learning_rate (float): learning rate
+        train_two_nets (bool): whether to train two networks, one to predict the next word and the other to predict the next POS, or only one net to directly predict the word
+        w_net_type (str): type of network of the word prediction part, allowed vales are 'RNN', 'GRU' and 'LSTM'
+        w_latent_dim (int): number of embeddings in the word prediction part
+        w_n_units (List[int]): number of units for each hidden layer of the word prediction part
+        w_dropout (float): dropout amount (0 to disable) in the word prediction part
+        w_n_hidden (int): number of hidden layers in the word prediction part
+        pos_net_type (str): type of network of the POS prediction part, allowed vales are 'RNN', 'GRU' and 'LSTM'
+        pos_latent_dim (int): number of embeddings in the POS prediction part
+        pos_n_units (List[int]): number of units for each hidden layer in the POS prediction part
+        pos_dropout (float): dropout amount (0 to disable) in the POS prediction part
+        pos_n_hidden (int): number of hidden layers in the POS prediction part
 
     Returns:
-        Tuple[Sequential, History, dict, dict]:
-            the model, the training history, the dictionaries to convert words to int and int to words,
+        Tuple[Union[Model, List[Model]], Union[History, List[History]], dict, dict]:
+            the model (or a list with the two models), the training history (or a list with the two histories),
+            the dictionaries to convert words to int, int to words, POS to int and int to POS,
             a dictionary containing the training parameters
     """
 
@@ -155,23 +163,26 @@ def train(data: List[List[Tuple[str, str]]], window: int, batch_size: int, epoch
 
 if __name__ == "__main__":
     
-    parser = argparse.ArgumentParser(description='Train a RNN to generate tweets.')
+    parser = argparse.ArgumentParser(description='Train a RNN to generate tweets. When [word prediction, POS prediction] is indicated' + \
+        'it means a 2-elements list, the first applies to the word prediction network (or branch), the second to the POS tag prediction.')
     parser.add_argument('--input', '-i', type=str, required=True,
                         help='input file')
     parser.add_argument('--file-type', '-t', type=str, required=True,
                         help='Input file type, the possible options are \'csv\' or \'excel\'')
     parser.add_argument('--column', '-c', type=str, default='vicinitas',
                         help='Name of the column of the input file containing the tweets')
-    parser.add_argument('--net-type', '-n', type=str, default='RNN',
-                        help='neural network type: RNN or GRU')
-    parser.add_argument('--latent-dim', '-L', type=int, default=256,
-                        help='latent space dimension')
-    parser.add_argument('--n-units', '-u', nargs='+', default=[1024],
-                        help='number of recurrent units')
+    parser.add_argument('--net-type', '-n', nargs='+', default=['RNN', 'RNN'],
+                        help='neural network types [word prediction, POS prediction]: RNN, GRU or LSTM')
+    parser.add_argument('--latent-dim', '-L', nargs='+', default=[256, 256],
+                        help='latent space dimensions [word prediction, POS prediction]')
+    parser.add_argument('--n-units-word', '-u', nargs='+', default=[1024],
+                        help='number of recurrent units for the word prediction')
+    parser.add_argument('--n-units-pos', '-U', nargs='+', default=[1024],
+                        help='number of recurrent units for the POS tag prediction')
     parser.add_argument('--window', '-w', type=int, default=5,
                         help='scan window dimension')
-    parser.add_argument('--dropout', '-d', type=float, default=0,
-                        help='fraction of the input units to drop. Set to 0 to disable')
+    parser.add_argument('--dropout', '-d', nargs='+', default=[0, 0],
+                        help='fraction of the input units to drop. Set to 0 to disable [word prediction, POS prediction]')
     parser.add_argument('--batch-size', '-b', type=int, default=32,
                         help='size of the batches')
     parser.add_argument('--epochs', '-e', type=int, default=100,
@@ -180,14 +191,16 @@ if __name__ == "__main__":
                         help='larning rate for training the model')
     parser.add_argument('--perc-test', '-p', type=float, default=0.2,
                         help='percent of data to reserve for testing')
-    parser.add_argument('--hidden', '-H', type=int, default=2,
-                        help='number of hidden layers')
+    parser.add_argument('--hidden', '-H', nargs='+', default=[1, 1],
+                        help='number of hidden layers [word prediction, POS prediction]')
     parser.add_argument('--remove', '-r', nargs='+', default=[],
                         help='regular expressions to remove from input texts')
     parser.add_argument('--shuffle', '-s', type=bool, default=False,
                         help='whether to shuffle data at the beginning of training and after each epoch')
-    parser.add_argument('--output-model-path', '-o', type=str, default='model', required=True,
+    parser.add_argument('--output-model-path', '-o', type=str, default='model',
                         help='path where to save the output model')
+    parser.add_argument('--train-two-nets', '-T', type=bool, required=True,
+                        help='whether to train two networks, one to predict the next word and the other to predict the next POS, or only one net to directly predict the word')
 
     args = parser.parse_args()
 
@@ -195,12 +208,24 @@ if __name__ == "__main__":
     data = loader.load(args.input, window=args.window + 1, regex_to_remove=args.remove)
     data = np.array(data, dtype=object)
 
-    model, history, dictionaries, conf = train(data, args.column, args.latent_dim, args.n_units,
-                                               args.window, args.dropout, args.batch_size, args.epochs,
-                                               args.learning_rate, args.perc_test, args.hidden, args.shuffle)
+    nltk.download('averaged_perceptron_tagger')
+
+    data_plus_pos = []
+    for sentence in tqdm(data):
+        sentence_plus_pos = nltk.pos_tag(sentence)
+        sentence_plus_pos = [list(pos) for pos in sentence_plus_pos]
+        data_plus_pos.append(sentence_plus_pos)
+    data_plus_pos = np.array(data_plus_pos, dtype=object)
+
+    model, history, dictionaries, conf = train(data_plus_pos, args.window, args.batch_size, args.epochs, args.perc_val,
+          args.shuffle, args.learning_rate, args.train_two_nets,
+          args.net_type[0], args.latent_dim[0], args.n_units_word, args.dropout[0], args.n_hidden[0],
+          args.net_type[1], args.latent_dim[1], args.n_units_pos, args.dropout[1], args.n_hidden[1])
     
     output_folder = os.path.join('output', args.output_model_path)
-    model.save(output_folder)
+    if type(model) == list:
+        model[0].save(os.path.join(output_folder, 'word_model'))
+        model[1].save(os.path.join(output_folder, 'pos_model'))
 
     dicts_dump_file = os.path.join('output', args.output_model_path + '.pkl')
     with open(dicts_dump_file, 'wb') as f:
