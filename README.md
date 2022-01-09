@@ -21,3 +21,7 @@ The files `train.ipynb` and `train_pos.ipynb` contain 4 example use cases:
 2. (`train.ipynb`) Train a single NN to generate the next word prediction based on the previous words and then modify the next word probability distribution using the previous POS tags. A routine calculates the probability of seeing a given POS tag based on the previous N POS tags as a simple frequency of onserved cases in the training data. Each candidate next word is asigned a POS tag and its probability is multiplied by the probability of the POS tag.
 3. (`train_pos.ipynb`) Train two NN, use to predict the next word and one to predict the next POS tag. The next POS tag probability is used to modify the next word probability in a similar way to what is done in use case #2, but instead of using the observed frequencies, the second NN output is used.
 4. (`train_pos.ipynb`) Train one single NN to predict the next word based on two inputs: the previous N words and the previous N POS tags.
+
+# Warning
+
+Something could break. I still have to write all test cases.
