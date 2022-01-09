@@ -25,3 +25,9 @@ The files `train.ipynb` and `train_pos.ipynb` contain 4 example use cases:
 # Warning
 
 Something could break. I still have to write all test cases.
+
+# ToDo
+
+* Add test cases
+* Make code work when it sees and unknown word
+* Move text generation from ipynb files to tweeterator*.py files
