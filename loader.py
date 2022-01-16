@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 import pandas as pd
 
@@ -15,7 +15,7 @@ class Loader(object):
 
     def __init__(self, flatten_hashtags: bool=True, flatten_mentions: bool=True) -> None:
         """
-        THis class is used to load and preprocess data from an input csv or excel file
+        This class is used to load and preprocess data from an input csv or excel file
 
         Args:
             flatten_hashtags (bool, optional): If to flatten the hashtags of the input sentences. Defaults to True.
@@ -26,7 +26,7 @@ class Loader(object):
         self._flatten_hashtags = flatten_hashtags
         self._flatten_mentions = flatten_mentions
             
-    def load(self, fname: str, file_type: str, text_column: str, window: int, regex_to_remove: List[str]) -> List[List[str]]:
+    def load(self, fname: str, file_type: str, text_column: str, window: int, regex_replace: Dict[str, str]) -> List[List[str]]:
         """
         Load the texts from the specified input file. It is read as a pandas DataFrame and then parsed.
 
@@ -35,7 +35,7 @@ class Loader(object):
             file_type (str): type of file to load, can be 'csv' or 'excel'
             text_column (str): name of the column to load
             window (int): minimum length of the sentence to be accepted.
-            regex_to_remove (List[str]): list of regular expressions to apply to the sentences to clean the texts
+            regex_replace (Dict[str, str]): use regex to replace the keys of the dict with the values
 
         Raises:
             RuntimeError: allowed input data types are only 'csv' or 'excel'
@@ -53,7 +53,7 @@ class Loader(object):
         
         texts = tweet_df[text_column]
         texts = texts.str.lower()
-        texts = self._clean(texts, regex_to_remove)
+        texts = self._clean(texts, regex_replace)
         
         data = [] 
         
@@ -72,21 +72,21 @@ class Loader(object):
         
         return data
     
-    def _clean(self, texts_series: pd.Series, regex_to_remove: List[str]) -> pd.Series:
+    def _clean(self, texts_series: pd.Series, regex_replace: Dict[str, str]) -> pd.Series:
         """
         Clean the input sentences
 
         Args:
             texts_series (pd.Series): loaded sentences
-            regex_to_remove (List[str]): list of regular expressions to apply to the sentences to clean the texts
+            regex_replace (Dict[str, str]): use regex to replace the keys of the dict with the values
 
         Returns:
             pd.Series: loaded sentences after cleaning
         """
         texts_series = texts_series.apply(tc.remove_urls)
         texts_series = texts_series.apply(tc.remove_newlines)
-        if len(regex_to_remove) > 0:
-            texts_series = texts_series.apply(tc.remove_words(regex_to_remove))
+        if len(regex_replace) > 0:
+            texts_series = texts_series.apply(tc.replace_regex(regex_replace))
         texts_series = texts_series.apply(str.strip)
         if self._flatten_hashtags:
             texts_series = texts_series.apply(tc.flatten_hashtags)

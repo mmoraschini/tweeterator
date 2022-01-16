@@ -1,4 +1,4 @@
-from typing import List, Callable
+from typing import List, Dict, Callable
 import re
 
 def remove_urls(string: str) -> str:
@@ -26,12 +26,12 @@ def remove_newlines(string: str) -> str:
     string = string.replace('\n', ' ')
     return string.replace('. .', '')
 
-def remove_words(regex_to_remove: List[str]) -> Callable:
+def replace_regex(regex: Dict[str, str]) -> Callable:
     """
     Remove words from input string based on regulr expressions
 
     Args:
-        regex_to_remove (List[str]): list of regular expressions to apply
+        regex (List[str]): list of regular expressions to apply
 
     Returns:
         Callable: a function that applies the regular expressions to a string
@@ -43,10 +43,11 @@ def remove_words(regex_to_remove: List[str]) -> Callable:
             string (str): the input string
 
         Returns:
-            str: the input string with words removed
+            str: the input string with words replaced
         """
-        for regex in regex_to_remove:
-            string = re.sub(regex, '', string)
+        for k in regex:
+            repl = regex[k]
+            string = re.sub(k, repl, string)
         
         return string
     
@@ -54,7 +55,7 @@ def remove_words(regex_to_remove: List[str]) -> Callable:
 
 def clean_symbols(string: str) -> str:
     """
-    Remove symbols from input string apart from word characters, points, spaces, hashtags and at symbols
+    Remove symbols from input string apart from word characters, points, quotes, spaces, hashtags and at symbols
 
     Args:
         string (str): the input string
@@ -62,9 +63,8 @@ def clean_symbols(string: str) -> str:
     Returns:
         str: the input string with symbols removed
     """
-    string = string.replace("’", "'")
-    string = string.replace("&amp;", "and")
-    return re.sub(r'[^\w .\'#@]', '', string)
+    
+    return re.sub(r'[^\w .\'\"#@]', '', string)
 
 def flatten_mentions(string: str) -> str:
     """
