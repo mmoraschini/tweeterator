@@ -1,6 +1,7 @@
 from typing import List, Dict, Callable
 import re
 
+
 def remove_urls(string: str) -> str:
     """
     Remove URLs from the text
@@ -11,7 +12,8 @@ def remove_urls(string: str) -> str:
     Returns:
         str: input string with URLs removed (if any)
     """
-    return re.sub(r'https?:\/\/.[^ ]* * ', 'website ', string)
+    return re.sub(r'https?:\/\/.[^ ]* * ', 'http://website.com ', string)
+
 
 def remove_newlines(string: str) -> str:
     """
@@ -26,6 +28,7 @@ def remove_newlines(string: str) -> str:
     string = string.replace('\n', ' ')
     return string.replace('. .', '')
 
+
 def replace_regex(regex: Dict[str, str]) -> Callable:
     """
     Remove words from input string based on regulr expressions
@@ -36,7 +39,7 @@ def replace_regex(regex: Dict[str, str]) -> Callable:
     Returns:
         Callable: a function that applies the regular expressions to a string
     """
-    def run(string: str) -> str:
+    def fcn(string: str) -> str:
         """
 
         Args:
@@ -51,20 +54,33 @@ def replace_regex(regex: Dict[str, str]) -> Callable:
         
         return string
     
-    return run
+    return fcn
 
-def clean_symbols(string: str) -> str:
+
+def clean_symbols(allowed_symbols: List[str]) -> str:
     """
-    Remove symbols from input string apart from word characters, points, quotes, spaces, hashtags and at symbols
-
+    Remove symbols from input string apart from word characters and allowed characters
     Args:
-        string (str): the input string
+        allowed_symbols (List[str]): a list of allowed symbols
 
     Returns:
-        str: the input string with symbols removed
+        Callable: a function that applies the regular expressions to a string
     """
-    
-    return re.sub(r'[^\w .\'\"#@]', '', string)
+    def fcn(string: str) -> str:
+        """
+
+        Args:
+            string (str): str: the input string
+
+        Returns:
+            str: str: the input string with symbols removed
+        """
+        allowed_symbols_string = ''.join(allowed_symbols)
+        re_match = rf'[^\w .{allowed_symbols_string}]'
+        return re.sub(re_match, '', string)
+
+    return fcn
+
 
 def flatten_mentions(string: str) -> str:
     """
@@ -77,6 +93,7 @@ def flatten_mentions(string: str) -> str:
         str: the input string with flattened mentions
     """
     return re.sub(r'(@+[a-zA-Z0-9(_)]{1,})', '@mention', string)
+
 
 def flatten_hashtags(string: str) -> str:
     """
