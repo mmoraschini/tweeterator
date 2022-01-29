@@ -26,7 +26,8 @@ class Loader(object):
         self._flatten_hashtags = flatten_hashtags
         self._flatten_mentions = flatten_mentions
             
-    def load(self, fname: str, file_type: str, text_column: str, window: int, regex_replace: Dict[str, str]) -> List[List[str]]:
+    def load(self, fname: str, file_type: str, text_column: str, window: int, regex_replace: Dict[str, str],
+             allowed_symbols: List[str]) -> List[List[str]]:
         """
         Load the texts from the specified input file. It is read as a pandas DataFrame and then parsed.
 
@@ -36,6 +37,7 @@ class Loader(object):
             text_column (str): name of the column to load
             window (int): minimum length of the sentence to be accepted.
             regex_replace (Dict[str, str]): use regex to replace the keys of the dict with the values
+            allowed_symbols (List[str]): a list of allowed symbols that won't be removed
 
         Raises:
             RuntimeError: allowed input data types are only 'csv' or 'excel'
@@ -53,7 +55,7 @@ class Loader(object):
         
         texts = tweet_df[text_column]
         texts = texts.str.lower()
-        texts = self._clean(texts, regex_replace)
+        texts = self._clean(texts, regex_replace, allowed_symbols)
         
         data = [] 
         
@@ -68,17 +70,19 @@ class Loader(object):
                     continue
                 
                 sentence_array = [word for word in tokens if len(word) > 0]
-                data.append(sentence_array)
+                data.append(sentence_array + ['.'])
         
         return data
     
-    def _clean(self, texts_series: pd.Series, regex_replace: Dict[str, str]) -> pd.Series:
+    def _clean(self, texts_series: pd.Series, regex_replace: Dict[str, str],
+               allowed_symbols: List[str]) -> pd.Series:
         """
         Clean the input sentences
 
         Args:
             texts_series (pd.Series): loaded sentences
             regex_replace (Dict[str, str]): use regex to replace the keys of the dict with the values
+            allowed_symbols (List[str]): a list of allowed symbols that won't be removed
 
         Returns:
             pd.Series: loaded sentences after cleaning
@@ -92,6 +96,6 @@ class Loader(object):
             texts_series = texts_series.apply(tc.flatten_hashtags)
         if self._flatten_mentions:
             texts_series = texts_series.apply(tc.flatten_mentions)
-        texts_series = texts_series.apply(tc.clean_symbols)
+        texts_series = texts_series.apply(tc.clean_symbols(allowed_symbols))
 
         return texts_series
