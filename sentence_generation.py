@@ -7,7 +7,7 @@ import nltk
 
 def one_model_one_input_one_output(model: Model, starting_words: List[str], window: int, use_pos_info: bool,
                                 w2i: dict, i2w: dict, pos_freq: dict, min_freq: float,
-                                deterministic: bool, output_length: int) -> List[str]:
+                                deterministic: bool, output_length: int, stop_at_eos: bool) -> List[str]:
     """
     Generate a sentence from the `nets.one_input_one_output` model
 
@@ -22,18 +22,19 @@ def one_model_one_input_one_output(model: Model, starting_words: List[str], wind
         min_freq (float): minimum frequency observed, used to assign a default probability when a key is not found in pos_freq
         deterministic (bool): whether to generate always the same sentence or to choose words based on their probability
         output_length (int): length of the output sentence
+        stop_at_eos (int): whether to stop when End Of Sentence is generated
 
     Returns:
         List[str]: list of generated words
     """
-    output_int = np.empty(output_length, dtype=int)
+    eos_int = w2i['.']
 
     # Set the first window elements to the start of the phrase
-    output_int[:window] = [w2i[word] for word in starting_words]
+    output_int = [w2i[word] for word in starting_words]
 
     # Predict the next word from the preceding ones (using the words already predicted)
     for i in range(0, output_length - window):
-        input_int = output_int[np.newaxis, i:window+i, np.newaxis]
+        input_int = np.expand_dims(output_int[i:window+i], axis=(0, 2))
         prediction = model(input_int).numpy()[0]
         
         if use_pos_info:
@@ -81,20 +82,17 @@ def one_model_one_input_one_output(model: Model, starting_words: List[str], wind
             else:
                 word_int = np.random.choice(range(len(prediction)), 1, p=prediction)[0]
 
-        output_int[window + i] = word_int
+        output_int.append(word_int)
+
+        if stop_at_eos & (word_int == eos_int):
+            break
     
     # Convert integers to words
-    output = []
-    for i in range(len(output_int)):
-        word_int = output_int[i]
-        word = i2w[word_int]
-        output.append(word)
-    
     return [i2w[ii] for ii in output_int]
 
 
 def one_model_two_inputs_one_output(model: Model, starting_words: List[str], window: int, w2i: dict, i2w: dict,
-                                pos2i: dict, deterministic: bool, output_length: int) -> List[str]:
+                                pos2i: dict, deterministic: bool, output_length: int, stop_at_eos: bool) -> List[str]:
     """
     Generate a sentence from the `nets.two_inputs_one_output` model
 
@@ -107,28 +105,29 @@ def one_model_two_inputs_one_output(model: Model, starting_words: List[str], win
         pos2i (dict): POS to int dictionary
         deterministic (bool): whether to generate always the same sentence or to choose words based on their probability
         output_length (int): length of the output sentence
+        stop_at_eos (int): whether to stop when End Of Sentence is generated
 
     Returns:
         List[str]: list of generated words
     """
-    output_int_word = np.empty(output_length, dtype=int)
+    eos_int = w2i['.']
 
     # Set the first window elements to the start of the phrase
-    output_int_word[:window] = [w2i[word] for word in starting_words]
+    output_int = [w2i[word] for word in starting_words]
 
     # Predict the next word from the preceding ones (using the words already predicted)
-    for i in range(0, output_int_word.size - window):
-        input_int_word = output_int_word[np.newaxis, i:window+i, np.newaxis]
+    for i in range(0, output_length - window):
+        input_int_word = np.expand_dims(output_int[i:window+i], axis=(0, 2))
 
-        input_str = [i2w[ii] for ii in output_int_word[i:window+i]]
+        input_str = [i2w[ii] for ii in output_int[i:window+i]]
         words_and_pos_tags = nltk.pos_tag(input_str)
         pos_tags = list(zip(*words_and_pos_tags))[1]
-        pos_tags_int = np.array([pos2i[pos] for pos in pos_tags])
-        pos_tags_int = pos_tags_int[np.newaxis, :, np.newaxis]
+        pos_tags_int = [pos2i[pos] for pos in pos_tags]
+        pos_tags_int = np.expand_dims(pos_tags_int, axis=(0, 2))
         
         # Even if the whole sentence is known in this test, run POS tagging only on the part
         # of sentence preceding the word to generate (real-like scenario)
-        input_str = [i2w[ii] for ii in output_int_word[i:window+i]]
+        input_str = [i2w[ii] for ii in output_int[i:window+i]]
         
         prediction = model([input_int_word, pos_tags_int]).numpy()[0]
         if deterministic:
@@ -136,20 +135,17 @@ def one_model_two_inputs_one_output(model: Model, starting_words: List[str], win
         else:
             word_int = np.random.choice(range(len(prediction)), 1, p=prediction)[0]
 
-        output_int_word[window + i] = word_int
+        output_int.append(word_int)
+
+        if stop_at_eos & (word_int == eos_int):
+            break
 
     # Convert integers to words
-    output = []
-    for i in range(len(output_int_word)):
-        word_int = output_int_word[i]
-        word = i2w[word_int]
-        output.append(word)
-    
-    return [i2w[ii] for ii in output_int_word]
+    return [i2w[ii] for ii in output_int]
 
 
 def one_model_two_inputs_two_outputs(model: Model, starting_words: List[str], window: int, w2i: dict, i2w: dict,
-            pos2i: dict, deterministic: bool, output_length: int) -> List[str]:
+            pos2i: dict, deterministic: bool, output_length: int, stop_at_eos: bool) -> List[str]:
     """
     Generate a sentence from the `nets.two_inputs_two_outputs` model
 
@@ -162,28 +158,29 @@ def one_model_two_inputs_two_outputs(model: Model, starting_words: List[str], wi
         pos2i (dict): POS to int dictionary
         deterministic (bool): whether to generate always the same sentence or to choose words based on their probability
         output_length (int): length of the output sentence
+        stop_at_eos (int): whether to stop when End Of Sentence is generated
 
     Returns:
         List[str]: list of generated words
     """
-    output_int_word = np.empty(output_length, dtype=int)
+    eos_int = w2i['.']
 
     # Set the first window elements to the start of the phrase
-    output_int_word[:window] = [w2i[word] for word in starting_words]
+    output_int = [w2i[word] for word in starting_words]
 
     # Predict the next word from the preceding ones (using the words already predicted)
-    for i in range(0, output_int_word.size - window):
-        input_int_word = output_int_word[np.newaxis, i:window+i, np.newaxis]
+    for i in range(0, output_length - window):
+        input_int_word = np.expand_dims(output_int[i:window+i], axis=(0, 2))
 
-        input_str = [i2w[ii] for ii in output_int_word[i:window+i]]
+        input_str = [i2w[ii] for ii in output_int[i:window+i]]
         words_and_pos_tags = nltk.pos_tag(input_str)
         pos_tags = list(zip(*words_and_pos_tags))[1]
-        pos_tags_int = np.array([pos2i[pos] for pos in pos_tags])
-        pos_tags_int = pos_tags_int[np.newaxis, :, np.newaxis]
+        pos_tags_int = [pos2i[pos] for pos in pos_tags]
+        pos_tags_int = np.expand_dims(pos_tags_int, axis=(0, 2))
         
         # Even if the whole sentence is known in this test, run POS tagging only on the part
         # of sentence preceding the word to generate (real-like scenario)
-        input_str = [i2w[ii] for ii in output_int_word[i:window+i]]
+        input_str = [i2w[ii] for ii in output_int[i:window+i]]
         
         prediction, prediction_pos = model([input_int_word, pos_tags_int])
         prediction = prediction.numpy()[0]
@@ -211,20 +208,17 @@ def one_model_two_inputs_two_outputs(model: Model, starting_words: List[str], wi
         
         word_int = best_guesses[chosen_guess]
 
-        output_int_word[window + i] = word_int
+        output_int.append(word_int)
 
-    # Convert integers to words
-    output = []
-    for i in range(len(output_int_word)):
-        word_int = output_int_word[i]
-        word = i2w[word_int]
-        output.append(word)
+        if stop_at_eos & (word_int == eos_int):
+            break
     
-    return [i2w[ii] for ii in output_int_word]
+    # Convert integers to words
+    return [i2w[ii] for ii in output_int]
 
 
 def two_models(model: List[Model], starting_words: List[str], window: int, w2i: dict, i2w: dict,
-            pos2i: dict, deterministic: bool, output_length: int) -> List[str]:
+            pos2i: dict, deterministic: bool, output_length: int, stop_at_eos: bool) -> List[str]:
     """
     Generate a sentence from two `nets.one_input_one_output` models. One that predicts the next word and the other the next POS.
 
@@ -237,29 +231,30 @@ def two_models(model: List[Model], starting_words: List[str], window: int, w2i: 
         pos2i (dict): POS to int dictionary
         deterministic (bool): whether to generate always the same sentence or to choose words based on their probability
         output_length (int): length of the output sentence
+        stop_at_eos (int): whether to stop when End Of Sentence is generated
 
     Returns:
         List[str]: list of generated words
     """
-    
-    output_int_word = np.empty(output_length, dtype=int)
+
+    eos_int = w2i['.']
 
     # Set the first window elements to the start of the phrase
-    output_int_word[:window] = [w2i[word] for word in starting_words]
+    output_int = [w2i[word] for word in starting_words]
 
     # Predict the next word from the preceding ones (using the words already predicted)
-    for i in range(0, output_int_word.size - window):
-        input_int_word = output_int_word[np.newaxis, i:window+i, np.newaxis]
+    for i in range(0, output_length - window):
+        input_int_word = np.expand_dims(output_int[i:window+i], axis=(0, 2))
 
-        input_str = [i2w[ii] for ii in output_int_word[i:window+i]]
+        input_str = [i2w[ii] for ii in output_int[i:window+i]]
         words_and_pos_tags = nltk.pos_tag(input_str)
         pos_tags = list(zip(*words_and_pos_tags))[1]
-        pos_tags_int = np.array([pos2i[pos] for pos in pos_tags])
-        pos_tags_int = pos_tags_int[np.newaxis, :, np.newaxis]
+        pos_tags_int = [pos2i[pos] for pos in pos_tags]
+        pos_tags_int = np.expand_dims(pos_tags_int, axis=(0, 2))
         
         # Even if the whole sentence is known in this test, run POS tagging only on the part
         # of sentence preceding the word to generate (real-like scenario)
-        input_str = [i2w[ii] for ii in output_int_word[i:window+i]]
+        input_str = [i2w[ii] for ii in output_int[i:window+i]]
         
         prediction = model[0](input_int_word).numpy()[0]
         prediction_pos = model[1](pos_tags_int).numpy()[0]
@@ -286,13 +281,10 @@ def two_models(model: List[Model], starting_words: List[str], window: int, w2i: 
         
         word_int = best_guesses[chosen_guess]
 
-        output_int_word[window + i] = word_int
+        output_int.append(word_int)
+
+        if stop_at_eos & (word_int == eos_int):
+            break
 
     # Convert integers to words
-    output = []
-    for i in range(len(output_int_word)):
-        word_int = output_int_word[i]
-        word = i2w[word_int]
-        output.append(word)
-    
-    return [i2w[ii] for ii in output_int_word]
+    return [i2w[ii] for ii in output_int]
